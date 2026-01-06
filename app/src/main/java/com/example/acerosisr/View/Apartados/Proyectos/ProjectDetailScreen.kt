@@ -3,11 +3,13 @@ package com.example.acerosisr.View.Apartados.Proyectos
 import androidx.compose.foundation.layout.Column
 import androidx.compose.foundation.layout.Spacer
 import androidx.compose.foundation.layout.fillMaxSize
+import androidx.compose.foundation.layout.fillMaxWidth
 import androidx.compose.foundation.layout.height
 import androidx.compose.foundation.layout.padding
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material.icons.filled.Edit
+import androidx.compose.material3.CircularProgressIndicator
 import androidx.compose.material3.ExperimentalMaterial3Api
 import androidx.compose.material3.Icon
 import androidx.compose.material3.IconButton
@@ -16,41 +18,59 @@ import androidx.compose.material3.Scaffold
 import androidx.compose.material3.Text
 import androidx.compose.material3.TopAppBar
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import androidx.navigation.compose.rememberNavController
+import com.example.acerosisr.Navigation.AppNavHost
 import com.example.acerosisr.Navigation.AppScreen
 import com.example.acerosisr.Navigation.Navigation
-import com.example.acerosisr.ui.theme.AcerosISRTheme
+import com.example.acerosisr.ViewModel.ProjectsViewModel
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun ProjectDetailScreen(navController: Navigation, projectId: Int?) {
-    // In a real app, fetch project details using projectId
-    val project = projectId?.let {
-        // Mock data for demonstration
-        when (it) {
-            1 -> Project(1, "Construcción de nave industrial", "Cliente A", "En progreso", 101)
-            2 -> Project(2, "Rehabilitación de estructura metálica", "Cliente B", "Finalizado", 102)
-            3 -> Project(3, "Fabricación de portones", "Cliente C", "Cancelado", 101)
-            else -> null
+fun ProjectDetailScreen(
+    navController: Navigation,
+    projectId: Int?,
+    projectsViewModel: ProjectsViewModel
+) {
+    val project by projectsViewModel.selectedProject.collectAsState()
+    val isLoading by projectsViewModel.isLoading.collectAsState()
+    val errorMessage by projectsViewModel.errorMessage.collectAsState()
+
+    // Cuando cambie el id, cargamos el detalle desde el backend
+    LaunchedEffect(projectId) {
+        if (projectId != null) {
+            projectsViewModel.loadProjectDetail(projectId)
         }
     }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text(project?.descripcion ?: "Detalle del Proyecto") },
+                title = {
+                    Text(project?.titulo ?: "Detalle del proyecto")
+                },
                 navigationIcon = {
                     IconButton(onClick = { navController.popBackStack() }) {
-                        Icon(Icons.Filled.ArrowBack, "Atrás")
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Atrás")
                     }
                 },
                 actions = {
-                    if (project != null) {
-                        IconButton(onClick = { navController.navigateTo(AppScreen.CreateEditProject.createRoute(project.id)) }) {
-                            Icon(Icons.Filled.Edit, "Editar Proyecto")
+                    // Acción para editar (más adelante puedes usar una pantalla Create/Edit)
+                    if (project != null && project!!.id != null) {
+                        IconButton(
+                            onClick = {
+                                // Ajusta esta ruta si tienes una pantalla específica de edición
+                                navController.navigateTo(
+
+                                    AppScreen.EditProject.editRoute(project!!.id)
+                                )
+                            }
+                        ) {
+                            Icon(Icons.Filled.Edit, contentDescription = "Editar proyecto")
                         }
                     }
                 }
@@ -63,26 +83,107 @@ fun ProjectDetailScreen(navController: Navigation, projectId: Int?) {
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            if (project != null) {
-                Text(text = "Descripción: ${project.descripcion}", style = MaterialTheme.typography.titleLarge)
-                Spacer(modifier = Modifier.height(8.dp))
-                Text(text = "Cliente: ${project.cliente}", style = MaterialTheme.typography.bodyMedium)
-                Text(text = "Estado: ${project.estado}", style = MaterialTheme.typography.bodyMedium)
-                Text(text = "Registrado por Empleado ID: ${project.registradoPor}", style = MaterialTheme.typography.bodyMedium)
-                Text(text = "Fecha de Registro: ${project.fechaRegistro}", style = MaterialTheme.typography.bodyMedium)
-                // TODO: Display associated tasks and their progress
-                // TODO: Option to view project report if finished
-            } else {
-                Text("Proyecto no encontrado.", style = MaterialTheme.typography.titleLarge)
+            when {
+                projectId == null -> {
+                    Text(
+                        text = "Proyecto no válido.",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                }
+
+                isLoading -> {
+                    Column(
+                        modifier = Modifier
+                            .fillMaxWidth()
+                            .padding(top = 32.dp),
+                        horizontalAlignment = Alignment.CenterHorizontally
+                    ) {
+                        CircularProgressIndicator()
+                        Spacer(modifier = Modifier.height(8.dp))
+                        Text("Cargando proyecto...")
+                    }
+                }
+
+                errorMessage != null -> {
+                    Text(
+                        text = errorMessage ?: "Error desconocido",
+                        style = MaterialTheme.typography.titleLarge,
+                        color = MaterialTheme.colorScheme.error
+                    )
+                }
+
+                project != null -> {
+                    Text(
+                        text = "Título:",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    Text(
+                        text = project!!.titulo,
+                        style = MaterialTheme.typography.titleLarge
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+                    Text(
+                        text = "Descripción:",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    Text(
+                        text = project!!.descripcion,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "Cliente:",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    Text(
+                        text = project!!.cliente,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "Estado:",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    Text(
+                        text = project!!.estado,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "Registrado por (empleado_id):",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    Text(
+                        text = project!!.registradoPor?.toString() ?: "Sin registrar",
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+
+                    Spacer(modifier = Modifier.height(12.dp))
+
+                    Text(
+                        text = "Fecha de registro:",
+                        style = MaterialTheme.typography.labelLarge
+                    )
+                    Text(
+                        text = project!!.fechaRegistro,
+                        style = MaterialTheme.typography.bodyLarge
+                    )
+                }
+
+                else -> {
+                    Text(
+                        text = "Proyecto no encontrado.",
+                        style = MaterialTheme.typography.titleLarge
+                    )
+                }
             }
         }
     }
 }
-
-//@Preview(showBackground = true)
-//@Composable
-//fun ProjectDetailScreenPreview() {
-//    AcerosISRTheme {
-//        ProjectDetailScreen(navController = rememberNavController(), projectId = 1)
-//    }
-//}

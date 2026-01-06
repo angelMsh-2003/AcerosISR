@@ -20,10 +20,14 @@ import androidx.compose.foundation.text.selection.TextSelectionColors
 import androidx.compose.foundation.verticalScroll
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Check
+import androidx.compose.material.icons.filled.Clear
+import androidx.compose.material.icons.filled.Delete
+import androidx.compose.material.icons.filled.Face
 import androidx.compose.material.icons.filled.Person
 import androidx.compose.material.icons.filled.Warning
 import androidx.compose.material3.ButtonDefaults
 import androidx.compose.material3.Icon
+import androidx.compose.material3.IconButton
 import androidx.compose.material3.MaterialTheme
 import androidx.compose.material3.OutlinedButton
 import androidx.compose.material3.OutlinedTextField
@@ -41,8 +45,11 @@ import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.res.painterResource
 import androidx.compose.ui.text.input.KeyboardType
+import androidx.compose.ui.text.input.PasswordVisualTransformation
+import androidx.compose.ui.text.input.VisualTransformation
 import androidx.compose.ui.text.style.TextAlign
 import androidx.compose.ui.unit.dp
+import androidx.lint.kotlin.metadata.Visibility
 import com.example.acerosisr.Funtion.CustomAlertDialog
 import com.example.acerosisr.Navigation.AppScreen
 import com.example.acerosisr.Navigation.Navigation
@@ -51,110 +58,12 @@ import com.example.acerosisr.ViewModel.UserViewModel
 import com.example.acerosisr.ui.theme.*
 
 @Composable
-fun ValidarNumUsuario (navController: Navigation, loginModel: UserViewModel) {
-    var queryNumUser by remember { mutableStateOf("") }
-    var showDialogError by remember { mutableStateOf(false) }
-    val scrollState = rememberScrollState()
-
-    val alertMessage by loginModel.alertResult.collectAsState()
-
-    LaunchedEffect(alertMessage) {
-        if (alertMessage.isNotEmpty()) {
-            when (alertMessage) {
-                "NoExistUser" -> showDialogError = true
-            }
-            loginModel.clearAlertResult()
-        }
-    }
-
-    Column (modifier = Modifier
-        .fillMaxSize()
-        .verticalScroll(scrollState)
-        .background(BackgroundColor)
-        .padding(start = 40.dp, end = 40.dp),
-        verticalArrangement = Arrangement.Center,
-        horizontalAlignment = Alignment.CenterHorizontally
-    ) {
-        Box(modifier = Modifier
-            .size(300.dp)
-        ) {
-            Image(
-                painterResource(id = R.drawable.isr_logo),
-                contentDescription = "Logo_ISR",
-                modifier = Modifier.fillMaxSize()
-            )
-        }
-        Text("Ingresa tu número de usuario", style = MaterialTheme.typography.titleMedium)
-        Spacer(Modifier.height(20.dp))
-        OutlinedTextField(
-            value = queryNumUser,
-            onValueChange = { queryNumUser = it },
-            label = { Text("Número de usuario", textAlign = TextAlign.Center) },
-            shape = RoundedCornerShape(5.dp),
-            modifier = Modifier
-                .fillMaxWidth(),
-            colors = TextFieldDefaults.colors(
-                focusedTextColor = PrimaryColor,
-                unfocusedTextColor = PrimaryColor,
-                focusedContainerColor = BackgroundColorTwo,
-                unfocusedContainerColor = BackgroundColorTwo,
-                focusedLabelColor = TextColorBlack,
-                unfocusedLabelColor = TextColorBlack,
-                cursorColor = PrimaryColor,
-                selectionColors = TextSelectionColors(PrimaryColor, PrimaryColor.copy(alpha = 0.3f)),
-                focusedIndicatorColor = PrimaryColor,
-                unfocusedIndicatorColor = PrimaryColor,
-            ),
-            keyboardOptions = KeyboardOptions.Default.copy(
-                keyboardType = KeyboardType.Number
-            ),
-            singleLine = true
-        )
-        Spacer(Modifier.height(20.dp))
-        Text(if (alertMessage == "Good" || alertMessage == "NoExistUser"){""} else {alertMessage}, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = if (alertMessage =="Good"){SecondaryColor} else {ErrorColor})
-        Spacer(Modifier.height(20.dp))
-        OutlinedButton(
-            onClick = {
-                loginModel.existingUserValid(queryNumUser, navController)
-            },
-            colors = ButtonDefaults.outlinedButtonColors(
-                containerColor = PrimaryColor,
-                contentColor = TextColorWhite
-            ),
-            modifier = Modifier
-                .height(50.dp)
-                .width(230.dp),
-        ){
-            Text("Validar", style = MaterialTheme.typography.bodyLarge)
-        }
-        Spacer(Modifier.height(10.dp))
-        Row (modifier = Modifier.fillMaxWidth(),
-            horizontalArrangement = Arrangement.Center,
-            verticalAlignment = Alignment.CenterVertically
-        ) {
-            Text("¿Ya te has registrado?", style = MaterialTheme.typography.bodyLarge, color = PrimaryColor)
-            TextButton(
-                onClick = {navController.navigateTo(AppScreen.Login)},
-                colors = ButtonDefaults.textButtonColors(
-                    contentColor = PrimaryColor
-                ),
-            ) {
-                Text("Ingresa aquí.", style = MaterialTheme.typography.bodyLarge)
-            }
-        }
-        CustomAlertDialog(
-            showDialog = showDialogError,
-            onDismiss = { showDialogError = false; loginModel.clearAlertResult() },
-            "El usuario no existe",
-            ErrorColor,
-            icon = Icons.Default.Warning
-        )
-    }
-}
-
-@Composable
-fun Registro (navController: Navigation, loginModel: UserViewModel) {
+fun Registro(
+    navController: Navigation,
+    loginModel: UserViewModel
+) {
     var queryName by remember { mutableStateOf("") }
+    var queryNumUser by remember { mutableStateOf("") }
     var queryMail by remember { mutableStateOf("") }
     var queryPassword by remember { mutableStateOf("") }
     var queryPasswordRepeat by remember { mutableStateOf("") }
@@ -166,24 +75,25 @@ fun Registro (navController: Navigation, loginModel: UserViewModel) {
     val alertMessage by loginModel.alertResult.collectAsState()
 
     LaunchedEffect(alertMessage) {
-        if (alertMessage.isNotEmpty()) {
-            when (alertMessage) {
-                "Good" -> showDialog = true
-            }
+        if (alertMessage == "Good") {
+            showDialog = true
+            // aquí sí tiene sentido limpiar porque ya terminaste el flujo
             loginModel.clearAlertResult()
         }
     }
 
-    Column (modifier = Modifier
-        .fillMaxSize()
-        .verticalScroll(scrollState)
-        .background(BackgroundColor)
-        .padding(start = 40.dp, end = 40.dp),
+    Column(
+        modifier = Modifier
+            .fillMaxSize()
+            .verticalScroll(scrollState)
+            .background(BackgroundColor)
+            .padding(start = 40.dp, end = 40.dp),
         verticalArrangement = Arrangement.Center,
         horizontalAlignment = Alignment.CenterHorizontally
     ) {
-        Box(modifier = Modifier
-            .size(70.dp)
+        Box(
+            modifier = Modifier
+                .size(70.dp)
         ) {
             Icon(
                 Icons.Default.Person,
@@ -192,25 +102,203 @@ fun Registro (navController: Navigation, loginModel: UserViewModel) {
                 tint = PrimaryColor
             )
         }
-        Text("¡Regístrate!", style = MaterialTheme.typography.displaySmall)
+        Text("¡Regístrate!", style = MaterialTheme.typography.displaySmall, color = PrimaryColor)
         Spacer(Modifier.height(20.dp))
+        // NOMBRE COMPLETO
         OutlinedTextField(
             value = queryName,
             onValueChange = { queryName = it },
             label = { Text("Nombre completo", textAlign = TextAlign.Center) },
-            // ... (resto del OutlinedTextField)
+            shape = RoundedCornerShape(5.dp),
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = TextFieldDefaults.colors(
+                focusedTextColor = PrimaryColor,
+                unfocusedTextColor = PrimaryColor,
+                focusedContainerColor = BackgroundColorTwo,
+                unfocusedContainerColor = BackgroundColorTwo,
+                focusedLabelColor = TextColorBlack,
+                unfocusedLabelColor = TextColorBlack,
+                cursorColor = PrimaryColor,
+                selectionColors = TextSelectionColors(
+                    PrimaryColor,
+                    PrimaryColor.copy(alpha = 0.3f)
+                ),
+                focusedIndicatorColor = PrimaryColor,
+                unfocusedIndicatorColor = PrimaryColor,
+            )
         )
-        // ... (resto de los OutlinedTextFields)
+
+        Spacer(Modifier.height(10.dp))
+
+        OutlinedTextField(
+            value = queryNumUser,
+            onValueChange = { if (it.length <= 7) queryNumUser = it },
+            label = { Text("Número de Empleado") },
+            keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            colors = defaultTextFieldColors()
+        )
+
+        Spacer(Modifier.height(10.dp))
+
+        // CORREO ELECTRÓNICO
+        OutlinedTextField(
+            value = queryMail,
+            onValueChange = { queryMail = it },
+            label = { Text("Correo electrónico", textAlign = TextAlign.Center) },
+            shape = RoundedCornerShape(5.dp),
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            keyboardOptions = KeyboardOptions.Default.copy(
+                keyboardType = KeyboardType.Email
+            ),
+            colors = TextFieldDefaults.colors(
+                focusedTextColor = PrimaryColor,
+                unfocusedTextColor = PrimaryColor,
+                focusedContainerColor = BackgroundColorTwo,
+                unfocusedContainerColor = BackgroundColorTwo,
+                focusedLabelColor = TextColorBlack,
+                unfocusedLabelColor = TextColorBlack,
+                cursorColor = PrimaryColor,
+                selectionColors = TextSelectionColors(
+                    PrimaryColor,
+                    PrimaryColor.copy(alpha = 0.3f)
+                ),
+                focusedIndicatorColor = PrimaryColor,
+                unfocusedIndicatorColor = PrimaryColor,
+            )
+        )
+
+        Spacer(Modifier.height(10.dp))
+
+        // CONTRASEÑA
+        OutlinedTextField(
+            value = queryPassword,
+            onValueChange = { queryPassword = it },
+            label = { Text("Contraseña", textAlign = TextAlign.Center) },
+            shape = RoundedCornerShape(5.dp),
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            visualTransformation = if (isPasswordVisible) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions.Default.copy(
+                keyboardType = KeyboardType.Password
+            ),
+            trailingIcon = {
+                IconButton(onClick = { isPasswordVisible = !isPasswordVisible }) {
+                    Image(
+                        painterResource(id = if (isPasswordVisible) R.drawable.visibility else R.drawable.visibility_off),
+                        contentDescription = if (isPasswordVisible) "Hide password" else "Show password"
+                    )
+                }
+            },
+            colors = TextFieldDefaults.colors(
+                focusedTextColor = PrimaryColor,
+                unfocusedTextColor = PrimaryColor,
+                focusedContainerColor = BackgroundColorTwo,
+                unfocusedContainerColor = BackgroundColorTwo,
+                focusedLabelColor = TextColorBlack,
+                unfocusedLabelColor = TextColorBlack,
+                cursorColor = PrimaryColor,
+                selectionColors = TextSelectionColors(
+                    PrimaryColor,
+                    PrimaryColor.copy(alpha = 0.3f)
+                ),
+                focusedIndicatorColor = PrimaryColor,
+                unfocusedIndicatorColor = PrimaryColor,
+            )
+        )
+
+        Spacer(Modifier.height(10.dp))
+
+        // REPETIR CONTRASEÑA
+        OutlinedTextField(
+            value = queryPasswordRepeat,
+            onValueChange = { queryPasswordRepeat = it },
+            label = { Text("Repite tu contraseña", textAlign = TextAlign.Center) },
+            shape = RoundedCornerShape(5.dp),
+            modifier = Modifier.fillMaxWidth(),
+            singleLine = true,
+            visualTransformation = if (isPasswordVisibleRepeat) VisualTransformation.None else PasswordVisualTransformation(),
+            keyboardOptions = KeyboardOptions.Default.copy(
+                keyboardType = KeyboardType.Password
+            ),
+            trailingIcon = {
+                IconButton(onClick = { isPasswordVisibleRepeat = !isPasswordVisibleRepeat }) {
+                    Image(
+                        painterResource(id = if (isPasswordVisibleRepeat) R.drawable.visibility else R.drawable.visibility_off),
+                        contentDescription = if (isPasswordVisibleRepeat) "Hide password" else "Show password"
+                    )
+                }
+            },
+            colors = TextFieldDefaults.colors(
+                focusedTextColor = PrimaryColor,
+                unfocusedTextColor = PrimaryColor,
+                focusedContainerColor = BackgroundColorTwo,
+                unfocusedContainerColor = BackgroundColorTwo,
+                focusedLabelColor = TextColorBlack,
+                unfocusedLabelColor = TextColorBlack,
+                cursorColor = PrimaryColor,
+                selectionColors = TextSelectionColors(
+                    PrimaryColor,
+                    PrimaryColor.copy(alpha = 0.3f)
+                ),
+                focusedIndicatorColor = PrimaryColor,
+                unfocusedIndicatorColor = PrimaryColor,
+            )
+        )
+
         Spacer(Modifier.height(20.dp))
-        Text(alertMessage, style = MaterialTheme.typography.bodyLarge, textAlign = TextAlign.Center, color = ErrorColor)
-        Spacer(Modifier.height(20.dp))
+
+        // MENSAJE DE ERROR (si lo hay)
+        if (alertMessage.isNotBlank()) {
+            Text(
+                alertMessage,
+                style = MaterialTheme.typography.bodyLarge,
+                textAlign = TextAlign.Center,
+                color = ErrorColor
+            )
+            Spacer(Modifier.height(10.dp))
+        }
+
+        // BOTÓN REGISTRAR
         OutlinedButton(
             onClick = {
-                if (queryName.isBlank() || queryMail.isBlank() || queryPassword.isBlank() || queryPasswordRepeat.isBlank()) {
-                    loginModel.setAlertResult("Llena todos los campos")
-                } else {
-                    loginModel.registerNewBasicUser(queryName, queryMail, queryPassword, queryPasswordRepeat, navController)
-                }},
+                when {
+                    queryName.isBlank() ||
+                            queryMail.isBlank() ||
+                            queryPassword.isBlank() ||
+                            queryPasswordRepeat.isBlank() -> {
+                        loginModel.setAlertResult("Llena todos los campos")
+                    }
+
+                    !queryMail.contains("@") || !queryMail.contains(".") -> {
+                        loginModel.setAlertResult("Correo inválido")
+                    }
+
+                    queryPassword != queryPasswordRepeat -> {
+                        loginModel.setAlertResult("Las contraseñas no coinciden")
+                    }
+
+                    queryPassword.length < 4 -> {
+                        loginModel.setAlertResult("La contraseña debe tener al menos 4 caracteres")
+                    }
+
+                    else -> {
+                        // IMPORTANTE:
+                        // Este método debe crear SIEMPRE un usuario con rol BÁSICO en el backend.
+                        loginModel.registerNewBasicUser(
+                            queryName,
+                            queryNumUser,
+                            queryMail,
+                            queryPassword,
+                            queryPasswordRepeat,
+                            navController
+                        )
+                    }
+                }
+            },
             colors = ButtonDefaults.outlinedButtonColors(
                 containerColor = PrimaryColor,
                 contentColor = TextColorWhite
@@ -218,14 +306,38 @@ fun Registro (navController: Navigation, loginModel: UserViewModel) {
             modifier = Modifier
                 .height(50.dp)
                 .width(230.dp),
-        ){
+        ) {
             Text("Registrar", style = MaterialTheme.typography.bodyLarge)
         }
+
+        Spacer(Modifier.height(10.dp))
+
+        Row(
+            modifier = Modifier.fillMaxWidth(),
+            horizontalArrangement = Arrangement.Center,
+            verticalAlignment = Alignment.CenterVertically
+        ) {
+            Text(
+                "¿Ya tienes usuario?",
+                style = MaterialTheme.typography.bodyLarge,
+                color = PrimaryColor
+            )
+            TextButton(
+                onClick = { navController.navigateTo(AppScreen.Login) },
+                colors = ButtonDefaults.textButtonColors(
+                    contentColor = PrimaryColor
+                ),
+            ) {
+                Text("Inicia sesión", style = MaterialTheme.typography.bodyLarge)
+            }
+        }
+
+        // DIALOGO DE EXITO
         CustomAlertDialog(
             showDialog = showDialog,
             onDismiss = { navController.navigateTo(AppScreen.Login) },
-            "Te registraste exitosamente\nAhora inicia sesión",
-            PrimaryColor,
+            messages = "Te registraste exitosamente\nTu usuario es básico.\nAhora inicia sesión.",
+            color = PrimaryColor,
             icon = Icons.Default.Check
         )
     }

@@ -1,39 +1,60 @@
 package com.example.acerosisr.View.Apartados.Materiales
 
 import androidx.compose.foundation.layout.*
+import androidx.compose.foundation.text.KeyboardOptions
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.ArrowBack
 import androidx.compose.material3.*
 import androidx.compose.runtime.*
 import androidx.compose.ui.Modifier
 import androidx.compose.ui.text.input.KeyboardType
-import androidx.compose.ui.tooling.preview.Preview
 import androidx.compose.ui.unit.dp
-import com.example.acerosisr.Navigation.AppScreen
-import com.example.acerosisr.Navigation.Navigation // Added import
-import com.example.acerosisr.ui.theme.AcerosISRTheme
-import com.example.acerosisr.ui.theme.PrimaryColor // Added import for theme colors
-import com.example.acerosisr.ui.theme.TextColorWhite // Added import for theme colors
+import com.example.acerosisr.Navigation.Navigation
+import com.example.acerosisr.ViewModel.MaterialsViewModel
+import com.example.acerosisr.ui.theme.PrimaryColor
+import com.example.acerosisr.ui.theme.TextColorWhite
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MaterialMovementScreen(navController: Navigation) { // Changed NavHostController to Navigation
+fun MaterialMovementScreen(
+    navController: Navigation,
+    materialsViewModel: MaterialsViewModel
+) {
+    // Campos del formulario
     var materialName by remember { mutableStateOf("") }
-    var materialType by remember { mutableStateOf("") }
-    var unitOfMeasure by remember { mutableStateOf("") }
+
+    // TIPO (dropdown)
+    val tipos = listOf("tubo", "soldadura", "lamina", "herramienta", "otro")
+    var tipoExpanded by remember { mutableStateOf(false) }
+    var selectedTipo by remember { mutableStateOf(tipos.first()) }
+
+    // UNIDAD DE MEDIDA (dropdown)
+    data class UnidadMedidaOption(val value: String, val label: String)
+
+    val unidades = listOf(
+        UnidadMedidaOption("pieza", "Pieza"),
+        UnidadMedidaOption("kg", "Kilogramos (kg)"),
+        UnidadMedidaOption("ton", "Toneladas (ton)"),
+        UnidadMedidaOption("m", "Metros (m)"),
+        UnidadMedidaOption("lt", "Litros (lt)")
+    )
+    var umExpanded by remember { mutableStateOf(false) }
+    var selectedUM by remember { mutableStateOf(unidades.first()) }
+
+    var stock by remember { mutableStateOf("") }
     var description by remember { mutableStateOf("") }
-    var quantity by remember { mutableStateOf("") }
-    var costUnit by remember { mutableStateOf("") }
-    var movementType by remember { mutableStateOf("entrada") }
-    var observations by remember { mutableStateOf("") }
+
+    // Mensajes de UI
+    var localError by remember { mutableStateOf<String?>(null) }
+    var localSuccess by remember { mutableStateOf<String?>(null) }
 
     Scaffold(
         topBar = {
             TopAppBar(
-                title = { Text("Registrar Material o Movimiento") },
+                title = { Text("Registrar nuevo material") },
                 navigationIcon = {
-                    IconButton(onClick = { navController.popBackStack() }) { // Used popBackStack from Navigation interface
-                        Icon(Icons.Filled.ArrowBack, "Atrás")
+                    IconButton(onClick = { navController.popBackStack() }) {
+                        Icon(Icons.Filled.ArrowBack, contentDescription = "Atrás")
                     }
                 }
             )
@@ -45,78 +66,132 @@ fun MaterialMovementScreen(navController: Navigation) { // Changed NavHostContro
                 .padding(paddingValues)
                 .padding(16.dp)
         ) {
-            // Input para nuevo material (si aplica, o selección de existente)
+            // TIPO (dropdown)
+            ExposedDropdownMenuBox(
+                expanded = tipoExpanded,
+                onExpandedChange = { tipoExpanded = !tipoExpanded }
+            ) {
+                OutlinedTextField(
+                    value = selectedTipo,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Tipo de material") },
+                    modifier = Modifier
+                        .menuAnchor()
+                        .fillMaxWidth()
+                )
+                ExposedDropdownMenu(
+                    expanded = tipoExpanded,
+                    onDismissRequest = { tipoExpanded = false }
+                ) {
+                    tipos.forEach { tipo ->
+                        DropdownMenuItem(
+                            text = { Text(tipo) },
+                            onClick = {
+                                selectedTipo = tipo
+                                tipoExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // NOMBRE
             OutlinedTextField(
                 value = materialName,
                 onValueChange = { materialName = it },
                 label = { Text("Nombre del Material") },
                 modifier = Modifier.fillMaxWidth()
             )
+
             Spacer(modifier = Modifier.height(8.dp))
+
+            // UNIDAD DE MEDIDA (dropdown)
+            ExposedDropdownMenuBox(
+                expanded = umExpanded,
+                onExpandedChange = { umExpanded = !umExpanded }
+            ) {
+                OutlinedTextField(
+                    value = selectedUM.label,
+                    onValueChange = {},
+                    readOnly = true,
+                    label = { Text("Unidad de medida") },
+                    modifier = Modifier
+                        .menuAnchor()
+                        .fillMaxWidth()
+                )
+                ExposedDropdownMenu(
+                    expanded = umExpanded,
+                    onDismissRequest = { umExpanded = false }
+                ) {
+                    unidades.forEach { um ->
+                        DropdownMenuItem(
+                            text = { Text(um.label) },
+                            onClick = {
+                                selectedUM = um
+                                umExpanded = false
+                            }
+                        )
+                    }
+                }
+            }
+
+            Spacer(modifier = Modifier.height(8.dp))
+
+            // STOCK ACTUAL
             OutlinedTextField(
-                value = materialType,
-                onValueChange = { materialType = it },
-                label = { Text("Tipo (tubo, soldadura, etc.)") },
+                value = stock,
+                onValueChange = { stock = it },
+                label = { Text("Stock inicial") },
+                keyboardOptions = KeyboardOptions(keyboardType = KeyboardType.Number),
                 modifier = Modifier.fillMaxWidth()
             )
+
             Spacer(modifier = Modifier.height(8.dp))
-            OutlinedTextField(
-                value = unitOfMeasure,
-                onValueChange = { unitOfMeasure = it },
-                label = { Text("Unidad de Medida (pieza, kg, etc.)") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(8.dp))
+
+            // DESCRIPCIÓN
             OutlinedTextField(
                 value = description,
                 onValueChange = { description = it },
                 label = { Text("Descripción (opcional)") },
                 modifier = Modifier.fillMaxWidth()
             )
+
             Spacer(modifier = Modifier.height(16.dp))
 
-            // Selector de tipo de movimiento
-            Row(modifier = Modifier.fillMaxWidth(), horizontalArrangement = Arrangement.SpaceAround) {
-                FilterChip(
-                    selected = movementType == "entrada",
-                    onClick = { movementType = "entrada" },
-                    label = { Text("Entrada") }
-                )
-                FilterChip(
-                    selected = movementType == "salida",
-                    onClick = { movementType = "salida" },
-                    label = { Text("Salida") }
-                )
+            // Mensajes
+            localError?.let {
+                Text(it, color = MaterialTheme.colorScheme.error)
+                Spacer(modifier = Modifier.height(8.dp))
             }
-            Spacer(modifier = Modifier.height(16.dp))
-
-            OutlinedTextField(
-                value = quantity,
-                onValueChange = { quantity = it },
-                label = { Text("Cantidad") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(8.dp))
-
-            if (movementType == "entrada") {
-                OutlinedTextField(
-                    value = costUnit,
-                    onValueChange = { costUnit = it },
-                    label = { Text("Costo Unitario") },
-                    modifier = Modifier.fillMaxWidth()
-                )
+            localSuccess?.let {
+                Text(it, color = MaterialTheme.colorScheme.primary)
                 Spacer(modifier = Modifier.height(8.dp))
             }
 
-            OutlinedTextField(
-                value = observations,
-                onValueChange = { observations = it },
-                label = { Text("Observaciones (opcional)") },
-                modifier = Modifier.fillMaxWidth()
-            )
-            Spacer(modifier = Modifier.height(16.dp))
+            Button(
+                onClick = {
+                    localError = null
+                    localSuccess = null
 
-            Button(onClick = { /* TODO: Implement save logic */ }, 
+                    materialsViewModel.createMaterialFromForm(
+                        tipo = selectedTipo,
+                        nombre = materialName,
+                        unidadMedida = selectedUM.value,
+                        stock = stock,
+                        descripcion = description,
+                        onSuccess = {
+                            localSuccess = "Material registrado correctamente"
+                            // Si quieres regresar directo:
+                            navController.popBackStack()
+                        },
+                        onError = { msg ->
+                            localError = msg
+                        }
+                    )
+                },
                 modifier = Modifier.fillMaxWidth(),
                 colors = ButtonDefaults.buttonColors(
                     containerColor = PrimaryColor,
@@ -125,24 +200,8 @@ fun MaterialMovementScreen(navController: Navigation) { // Changed NavHostContro
                     disabledContentColor = TextColorWhite.copy(alpha = 0.5f)
                 )
             ) {
-                Text("Guardar Movimiento")
+                Text("Guardar material")
             }
         }
     }
 }
-
-//@Preview(showBackground = true)
-//@Composable
-//fun MaterialMovementScreenPreview() {
-//    AcerosISRTheme {
-//        // Need a mock Navigation instance for preview
-//        MaterialMovementScreen(object : Navigation { // Mock Navigation
-//            override fun navigateTo(route: AppScreen.MaterialMovement) {
-//                // Do nothing for preview
-//            }
-//            override fun popBackStack() {
-//                // Do nothing for preview
-//            }
-//        })
-//    }
-//}

@@ -6,83 +6,182 @@ import androidx.compose.foundation.lazy.LazyColumn
 import androidx.compose.foundation.lazy.items
 import androidx.compose.material.icons.Icons
 import androidx.compose.material.icons.filled.Add
+import androidx.compose.material.icons.filled.ArrowForward
+import androidx.compose.material.icons.filled.Create
+import androidx.compose.material.icons.filled.Menu
+import androidx.compose.material.icons.materialIcon
 import androidx.compose.material3.*
 import androidx.compose.runtime.Composable
+import androidx.compose.runtime.LaunchedEffect
+import androidx.compose.runtime.collectAsState
+import androidx.compose.runtime.getValue
+import androidx.compose.runtime.mutableStateOf
+import androidx.compose.runtime.remember
+import androidx.compose.runtime.setValue
+import androidx.compose.ui.Alignment
 import androidx.compose.ui.Modifier
-import androidx.compose.ui.tooling.preview.Preview
+import androidx.compose.ui.text.font.FontWeight
 import androidx.compose.ui.unit.dp
 import com.example.acerosisr.Model.Material // Added import
 import com.example.acerosisr.Navigation.AppScreen
 import com.example.acerosisr.Navigation.Navigation
-import com.example.acerosisr.ui.theme.AcerosISRTheme
+import com.example.acerosisr.ViewModel.MaterialsViewModel
+import com.google.android.libraries.play.games.inputmapping.Input
 
 // Removed the local data class Material definition
 
 @OptIn(ExperimentalMaterial3Api::class)
 @Composable
-fun MaterialListScreen(navController: Navigation) {
+fun MaterialListScreen(
+    navController: Navigation,
+    materialsViewModel: MaterialsViewModel
+) {
+    val materials by materialsViewModel.materials.collectAsState()
+    val isLoading by materialsViewModel.isLoading.collectAsState()
+    val error by materialsViewModel.errorMessage.collectAsState()
+
+    // ESTADOS PARA LA VENTANA EMERGENTE (POPUP)
+    var showDialog by remember { mutableStateOf(false) }
+    var selectedMaterial by remember { mutableStateOf<Material?>(null) }
+
+    LaunchedEffect(Unit) {
+        materialsViewModel.loadMaterials()
+    }
+
+    // --- DIALOGO EXISTENTE (Gestión Material) ---
+    if (showDialog && selectedMaterial != null) {
+        AlertDialog(
+            onDismissRequest = { showDialog = false },
+            icon = { Icon(Icons.Filled.Create, contentDescription = null) },
+            title = { Text(text = "Gestionar Material") },
+            text = {
+                Column {
+                    Text(
+                        text = selectedMaterial!!.nombre,
+                        style = MaterialTheme.typography.titleMedium,
+                        fontWeight = FontWeight.Bold
+                    )
+                    Spacer(modifier = Modifier.height(8.dp))
+                    Text("¿Qué deseas hacer con este material?")
+                }
+            },
+            confirmButton = {
+                Button(
+                    onClick = {
+                        showDialog = false
+                        navController.navigateTo(
+                            AppScreen.MaterialReception.createRoute(selectedMaterial!!.id)
+                        )
+                    }
+                ) {
+                    Text("Recepción")
+                    Spacer(Modifier.width(8.dp))
+                    Icon(Icons.Filled.ArrowForward, contentDescription = null, modifier = Modifier.size(18.dp))
+                }
+            },
+            dismissButton = {
+                OutlinedButton(
+                    onClick = {
+                        showDialog = false
+                        navController.navigateTo(
+                            AppScreen.MaterialDetail.createRoute(selectedMaterial!!.id)
+                        )
+                    }
+                ) {
+                    Text("Detalles / Editar")
+                }
+            }
+        )
+    }
+
     Scaffold(
-        topBar = {
-            TopAppBar(title = { Text("Materiales") })
-        },
+        topBar = { TopAppBar(title = { Text("Materiales") }) },
         floatingActionButton = {
-            FloatingActionButton(onClick = {
-                navController.navigateTo(AppScreen.MaterialMovement)
-            }) {
-                Icon(Icons.Filled.Add, "Agregar Material o Movimiento")
+            // Columna para poner los botones uno encima del otro, o Fila para lado a lado.
+            // Usaremos columna para estilo "Speed Dial" clásico.
+            Column(
+                horizontalAlignment = Alignment.End,
+                verticalArrangement = Arrangement.spacedBy(16.dp)
+            ) {
+                // BOTÓN NUEVO: REPORTE
+                SmallFloatingActionButton(
+                    onClick = {
+                        // Navegar a la nueva vista de Reportes
+                        // Asegúrate de agregar "material_report" a tu Navigation Graph
+                        navController.navigateTo(AppScreen.MaterialReport)
+                    },
+                    containerColor = MaterialTheme.colorScheme.secondaryContainer,
+                    contentColor = MaterialTheme.colorScheme.onSecondaryContainer
+                ) {
+                    Icon(Icons.Filled.Menu, "Ver Reporte de Movimientos")
+                }
+
+                // BOTÓN EXISTENTE: AGREGAR MATERIAL
+                FloatingActionButton(onClick = {
+                    navController.navigateTo(AppScreen.MaterialMovement)
+                }) {
+                    Icon(Icons.Filled.Add, "Agregar Material")
+                }
             }
         }
     ) { paddingValues ->
-        val sampleMaterials = listOf(
-            Material(1, "Tubo Cuadrado 2x2", "tubo", 150.0),
-            Material(2, "Soldadura 7018", "soldadura", 50.0),
-            Material(3, "Lámina Lisa Cal. 16", "lamina", 25.0),
-            Material(4, "Electrodo E6010", "soldadura", 75.0),
-            Material(5, "Escuadra Magnética", "herramienta", 10.0)
-        )
-
-        LazyColumn(
+        Column(
             modifier = Modifier
                 .fillMaxSize()
                 .padding(paddingValues)
                 .padding(horizontal = 16.dp, vertical = 8.dp)
         ) {
-            items(sampleMaterials) { material ->
-                MaterialListItem(material = material) {
-                    navController.navigateTo(AppScreen.MaterialDetail.createRoute(material.id))
+            if (isLoading) {
+                Box(modifier = Modifier.fillMaxWidth(), contentAlignment = Alignment.Center) {
+                    CircularProgressIndicator()
+                }
+            } else if (!error.isNullOrBlank()) {
+                Text(error ?: "", color = MaterialTheme.colorScheme.error)
+            }
+
+            LazyColumn {
+                items(materials) { material ->
+                    MaterialListItem(material = material) { clickedMaterial ->
+                        selectedMaterial = clickedMaterial
+                        showDialog = true
+                    }
                 }
             }
         }
     }
 }
-
 @Composable
 fun MaterialListItem(material: Material, onClick: (Material) -> Unit) {
     Card(
         modifier = Modifier
             .fillMaxWidth()
             .padding(vertical = 4.dp)
-            .clickable { onClick(material) }
+            .clickable { onClick(material) },
+        elevation = CardDefaults.cardElevation(defaultElevation = 2.dp)
     ) {
-        Column(
-            modifier = Modifier
-                .padding(16.dp)
-        ) {
-            Text(text = material.nombre, style = MaterialTheme.typography.titleMedium)
+        Column(modifier = Modifier.padding(16.dp)) {
+            Row(
+                modifier = Modifier.fillMaxWidth(),
+                horizontalArrangement = Arrangement.SpaceBetween
+            ) {
+                Text(text = material.nombre, style = MaterialTheme.typography.titleMedium, fontWeight = FontWeight.SemiBold)
+                Badge(containerColor = MaterialTheme.colorScheme.secondaryContainer) {
+                    Text(
+                        text = "${material.stockActual} ${material.unidadMedida}",
+                        modifier = Modifier.padding(4.dp),
+                        color = MaterialTheme.colorScheme.onSecondaryContainer
+                    )
+                }
+            }
             Spacer(modifier = Modifier.height(4.dp))
-            Text(text = "Tipo: ${material.tipo}", style = MaterialTheme.typography.bodySmall)
-            Text(text = "Stock: ${material.stock}", style = MaterialTheme.typography.bodySmall)
+            Text(text = "Tipo: ${material.tipo}", style = MaterialTheme.typography.bodySmall, color = MaterialTheme.colorScheme.outline)
+
+            material.descripcion?.let {
+                if (it.isNotBlank()) {
+                    Spacer(modifier = Modifier.height(4.dp))
+                    Text(text = it, style = MaterialTheme.typography.bodySmall)
+                }
+            }
         }
     }
 }
-
-//@Preview(showBackground = true)
-//@Composable
-//fun MaterialListScreenPreview() {
-//    AcerosISRTheme {
-//        MaterialListScreen(object : Navigation {
-//            override fun navigateTo(route: AppScreen.MaterialMovement) {}
-//            override fun popBackStack() {}
-//        })
-//    }
-//}

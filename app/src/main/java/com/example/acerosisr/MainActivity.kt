@@ -14,8 +14,12 @@ import androidx.navigation.compose.rememberNavController
 import com.example.acerosisr.Data.ApiService
 import com.example.acerosisr.Data.TareasRepositoryImpl
 import com.example.acerosisr.Data.UserRepositoryImpl
+import com.example.acerosisr.Data.MaterialsRepositoryImpl
+import com.example.acerosisr.Data.ProjectsRepositoryImpl
 import com.example.acerosisr.Navigation.AppNavHost
 import com.example.acerosisr.ViewModel.AppViewModelFactory
+import com.example.acerosisr.ViewModel.MaterialsViewModel
+import com.example.acerosisr.ViewModel.ProjectsViewModel
 import com.example.acerosisr.ViewModel.TareasViewModel
 import com.example.acerosisr.ViewModel.UserViewModel
 import com.example.acerosisr.other.AppCloser // Import AppCloser
@@ -25,12 +29,15 @@ class MainActivity : ComponentActivity(), AppCloser { // Implement the interface
 
     // Use "mock-api-url" for development without a real backend
     // Once you have your Cloud Run service, replace it with your actual URL
-    private val BASE_URL = "mock-api-url" // Changed to mock URL
+    private val BASE_URL = "https://backend-flask-1052567957618.us-central1.run.app"
+//    private val BASE_URL = "https://backend-flask-1052567957618.us-central1.run.app/"
 
     private val apiService by lazy { ApiService(BASE_URL) }
     private val userRepository by lazy { UserRepositoryImpl(apiService) }
     private val tareasRepository by lazy { TareasRepositoryImpl(apiService) }
-    private val appViewModelFactory by lazy { AppViewModelFactory(userRepository, tareasRepository) }
+    private val materialsRepository by lazy { MaterialsRepositoryImpl(apiService) }
+    private val projectsRepository by lazy { ProjectsRepositoryImpl(apiService) }
+    private val appViewModelFactory by lazy { AppViewModelFactory(userRepository, tareasRepository, materialsRepository, projectsRepository) }
 
     override fun onCreate(savedInstanceState: Bundle?) {
         super.onCreate(savedInstanceState)
@@ -44,12 +51,16 @@ class MainActivity : ComponentActivity(), AppCloser { // Implement the interface
                     val navController = rememberNavController()
                     val userViewModel: UserViewModel = viewModel(factory = appViewModelFactory)
                     val tareasViewModel: TareasViewModel = viewModel(factory = appViewModelFactory)
+                    val materialsViewModel : MaterialsViewModel = viewModel(factory = appViewModelFactory)
+                    val projectsViewModel : ProjectsViewModel = viewModel(factory = appViewModelFactory)
 
                     AppNavHost(
                         navController = navController,
                         userViewModel = userViewModel,
                         tareasViewModel = tareasViewModel,
-                        appCloser = this // Pass the implementation of AppCloser
+                        materialsViewModel= materialsViewModel,
+                        projectsViewModel = projectsViewModel,
+                        appCloser = this// Pass the implementation of AppCloser,
                     )
                 }
             }

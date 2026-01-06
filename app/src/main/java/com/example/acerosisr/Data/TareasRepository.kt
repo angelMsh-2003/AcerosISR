@@ -1,11 +1,14 @@
 package com.example.acerosisr.Data
 
-import com.example.acerosisr.Model.Tareas // Importing the actual Tareas data class
+import com.example.acerosisr.Model.Empleados
+import com.example.acerosisr.Model.ProjectTasksSummary
+import com.example.acerosisr.Model.Tareas
+import com.example.acerosisr.Model.UsuarioTareaEspecifica
 import kotlinx.coroutines.Dispatchers
 import kotlinx.coroutines.withContext
+import org.json.JSONArray
+import org.json.JSONObject
 import java.util.Date
-
-// Removed the placeholder interface Tareas, now directly using Model.Tareas
 
 interface TareasRepository {
     suspend fun getAllTasks(): Result<List<Tareas>>
@@ -15,95 +18,144 @@ interface TareasRepository {
     suspend fun deleteTask(taskId: Long): Result<String>
     suspend fun assignTaskToEmployee(taskId: Long, empleadoId: Long): Result<String>
     suspend fun updateTaskStatus(taskId: Long, newStatus: String): Result<String>
+    suspend fun getAllEmployees(): Result<List<Empleados>>
+    suspend fun getProjectsTasksSummary(): Result<List<ProjectTasksSummary>>
+    suspend fun getTasksByEmployee(empleadoId: Long): Result<List<UsuarioTareaEspecifica>>
 }
 
 class TareasRepositoryImpl(private val apiService: ApiService) : TareasRepository {
     private val TASKS_ENDPOINT = "api/tareas"
+    private val EMPLOYEES_ENDPOINT = "api/empleados"
+    private val PROJECTS_TASKS_SUMMARY_ENDPOINT = "api/proyectos/resumen-tareas"
 
     override suspend fun getAllTasks(): Result<List<Tareas>> = withContext(Dispatchers.IO) {
-        apiService.get(TASKS_ENDPOINT)
-            .mapCatching { responseJson -> // Using mapCatching for safer parsing
-                val jsonListContent = responseJson.removePrefix("[").removeSuffix("]")
-                val jsonList = JsonConverter.splitJsonEntries(jsonListContent).map { "{\n" + it + "\n}" } // Reconstruct full JSON objects for proper parsing
-
-                jsonList.mapNotNull { itemJson ->
-                    try {
-                        val data = JsonConverter.fromJson(itemJson)
-                        Tareas(
-                            tareaId = (data["tareaId"] as? Long) ?: 0L,
-                            proyectoId = (data["proyectoId"] as? Long) ?: 0L,
-                            empleadoId = (data["empleadoId"] as? Long),
-                            estado = (data["estado"] as? String) ?: "",
-                            fechaInicio = (data["fechaInicio"] as? Long)?.let { Date(it) },
-                            fechaFin = (data["fechaFin"] as? Long)?.let { Date(it) },
-                            comentarios = data["comentarios"] as? String
-                        )
-                    } catch (e: Exception) {
-                        println("Error parsing task item: ${e.message}")
-                        null
-                    }
-                }
-            }
-            // Removed .fold(onSuccess = { it }, onFailure = { throw it })
+        apiService.get(TASKS_ENDPOINT).mapCatching { response ->
+            val jsonArray = JSONArray(response)
+            val list = mutableListOf<Tareas>()
+            for (i in 0 until jsonArray.length()) list.add(jsonToTarea(jsonArray.getJSONObject(i)))
+            list
+        }
     }
 
     override suspend fun getTaskById(taskId: Long): Result<Tareas> = withContext(Dispatchers.IO) {
-        apiService.get("$TASKS_ENDPOINT/$taskId")
-            .mapCatching { responseJson -> // Using mapCatching for safer parsing
-                val data = JsonConverter.fromJson(responseJson)
-                Tareas(
-                    tareaId = (data["tareaId"] as? Long) ?: 0L,
-                    proyectoId = (data["proyectoId"] as? Long) ?: 0L,
-                    empleadoId = (data["empleadoId"] as? Long),
-                    estado = (data["estado"] as? String) ?: "",
-                    fechaInicio = (data["fechaInicio"] as? Long)?.let { Date(it) },
-                    fechaFin = (data["fechaFin"] as? Long)?.let { Date(it) },
-                    comentarios = data["comentarios"] as? String
-                )
-            }
-            // Removed .fold(onSuccess = { it }, onFailure = { throw it })
+        apiService.get("$TASKS_ENDPOINT/$taskId").mapCatching { jsonToTarea(JSONObject(it)) }
     }
 
     override suspend fun createTask(tarea: Tareas): Result<String> = withContext(Dispatchers.IO) {
-        val tareaMap = mapOf(
-            "proyectoId" to tarea.proyectoId,
-            "empleadoId" to tarea.empleadoId,
-            "estado" to tarea.estado,
-            "fechaInicio" to tarea.fechaInicio?.time, // Convert Date to millis
-            "fechaFin" to tarea.fechaFin?.time,
-            "comentarios" to tarea.comentarios
-        )
-        apiService.post(TASKS_ENDPOINT, JsonConverter.toJson(tareaMap))
-            .map { "Tarea creada exitosamente" }
+        val body = JSONObject().apply {
+            put("proyectoId", tarea.proyectoId)
+            put("empleadoId", tarea.empleadoId)
+            put("estado", tarea.estado)
+            put("fechaInicio", tarea.fechaInicio?.time)
+            put("fechaFin", tarea.fechaFin?.time)
+            put("comentarios", tarea.comentarios)
+        }
+        apiService.post(TASKS_ENDPOINT, body.toString()).map { "Creada" }
     }
 
     override suspend fun updateTask(tareaId: Long, tarea: Tareas): Result<String> = withContext(Dispatchers.IO) {
-        val tareaMap = mapOf(
-            "proyectoId" to tarea.proyectoId,
-            "empleadoId" to tarea.empleadoId,
-            "estado" to tarea.estado,
-            "fechaInicio" to tarea.fechaInicio?.time,
-            "fechaFin" to tarea.fechaFin?.time,
-            "comentarios" to tarea.comentarios
-        )
-        apiService.put("$TASKS_ENDPOINT/$tareaId", JsonConverter.toJson(tareaMap))
-            .map { "Tarea actualizada exitosamente" }
+        val body = JSONObject().apply {
+            put("proyectoId", tarea.proyectoId)
+            put("empleadoId", tarea.empleadoId)
+            put("estado", tarea.estado)
+            put("fechaInicio", tarea.fechaInicio?.time)
+            put("fechaFin", tarea.fechaFin?.time)
+            put("comentarios", tarea.comentarios)
+        }
+        apiService.put("$TASKS_ENDPOINT/$tareaId", body.toString()).map { "Actualizada" }
     }
 
     override suspend fun deleteTask(taskId: Long): Result<String> = withContext(Dispatchers.IO) {
-        apiService.delete("$TASKS_ENDPOINT/$taskId")
-            .map { "Tarea eliminada exitosamente" }
+        apiService.delete("$TASKS_ENDPOINT/$taskId").map { "Eliminada" }
     }
 
     override suspend fun assignTaskToEmployee(taskId: Long, empleadoId: Long): Result<String> = withContext(Dispatchers.IO) {
-        val body = mapOf("empleadoId" to empleadoId)
-        apiService.put("$TASKS_ENDPOINT/$taskId/assign", JsonConverter.toJson(body)) // Assuming an endpoint for assignment
-            .map { "Tarea asignada a empleado exitosamente" }
+        val body = JSONObject().put("empleadoId", empleadoId)
+        apiService.put("$TASKS_ENDPOINT/$taskId/assign", body.toString()).map { "Asignada" }
     }
 
     override suspend fun updateTaskStatus(taskId: Long, newStatus: String): Result<String> = withContext(Dispatchers.IO) {
-        val body = mapOf("estado" to newStatus)
-        apiService.put("$TASKS_ENDPOINT/$taskId/status", JsonConverter.toJson(body)) // Assuming an endpoint for status update
-            .map { "Estado de tarea actualizado a '$newStatus'." }
+        val body = JSONObject().put("estado", newStatus)
+        apiService.put("$TASKS_ENDPOINT/$taskId/status", body.toString()).map { "Estado actualizado" }
+    }
+
+    override suspend fun getAllEmployees(): Result<List<Empleados>> = withContext(Dispatchers.IO) {
+        apiService.get(EMPLOYEES_ENDPOINT).mapCatching { response ->
+            val jsonArray = JSONArray(response)
+            val list = mutableListOf<Empleados>()
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                list.add(
+                    Empleados(
+                        IdEmpleado = obj.optLong("id"),
+                        NumEmpleado = obj.optLong("NumEmpleado"),
+                        NombreEmpleado = obj.optString("NombreEmpleado"), // Arregla nombres con acentos
+                        Cargo = obj.optString("Cargo"),
+                        Correo = obj.optString("Correo"),
+                        Estado = obj.optLong("Estado", 1),
+                        Password_hash = null, Salt = null, PasswordPlaintext = null
+                    )
+                )
+            }
+            list
+        }
+    }
+
+    override suspend fun getProjectsTasksSummary(): Result<List<ProjectTasksSummary>> = withContext(Dispatchers.IO) {
+        apiService.get(PROJECTS_TASKS_SUMMARY_ENDPOINT).mapCatching { response ->
+            val jsonArray = JSONArray(response)
+            val list = mutableListOf<ProjectTasksSummary>()
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                list.add(
+                    ProjectTasksSummary(
+                        proyectoId = obj.getInt("proyecto_id"),
+                        titulo = obj.optString("titulo", ""), // Arregla títulos de proyecto
+                        estado = obj.optString("estado", ""),
+                        tareasAsignadas = obj.optBoolean("tareasAsignadas"),
+                        tareasCumplidas = obj.optInt("tareasCumplidas"),
+                        tareasEnProceso = obj.optInt("tareasEnProceso"),
+                        tareasPendientes = obj.optInt("tareasPendientes")
+                    )
+                )
+            }
+            list
+        }
+    }
+
+    override suspend fun getTasksByEmployee(empleadoId: Long): Result<List<UsuarioTareaEspecifica>> = withContext(Dispatchers.IO) {
+        apiService.get("$TASKS_ENDPOINT/empleados/$empleadoId").mapCatching { response ->
+            val jsonArray = JSONArray(response)
+            val list = mutableListOf<UsuarioTareaEspecifica>()
+            for (i in 0 until jsonArray.length()) {
+                val obj = jsonArray.getJSONObject(i)
+                list.add(
+                    UsuarioTareaEspecifica(
+                        tareaId = obj.getLong("tareaId"),
+                        empleadoId = obj.getLong("empleadoId"),
+                        estado = obj.optString("estado"),
+                        fechaInicio = if (obj.isNull("fechaInicio")) null else Date(obj.getLong("fechaInicio")),
+                        fechaFin = if (obj.isNull("fechaFin")) null else Date(obj.getLong("fechaFin")),
+                        comentarios = obj.optString("comentarios", "Sin comentarios"), // Arregla comentarios
+                        proyectoId = obj.getLong("proyectoId"),
+                        proyectoTitulo = obj.optString("proyectoTitulo", "Sin Título"), // Arregla título
+                        proyectoDescripcion = obj.optString("proyectoDescripcion", "")
+                    )
+                )
+            }
+            list
+        }
+    }
+
+    private fun jsonToTarea(obj: JSONObject): Tareas {
+        return Tareas(
+            tareaId = obj.optLong("tareaId"),
+            proyectoId = obj.optLong("proyectoId"),
+            empleadoId = if (obj.isNull("empleadoId")) null else obj.getLong("empleadoId"),
+            estado = obj.optString("estado"),
+            fechaInicio = if (obj.isNull("fechaInicio")) null else Date(obj.getLong("fechaInicio")),
+            fechaFin = if (obj.isNull("fechaFin")) null else Date(obj.getLong("fechaFin")),
+            comentarios = obj.optString("comentarios") // Arregla comentarios
+        )
     }
 }

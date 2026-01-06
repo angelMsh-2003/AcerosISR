@@ -1,8 +1,10 @@
 package com.example.acerosisr.Model
 
 data class Material(
-    val id: Int,
-    val nombre: String,
+    val id: Int? = null,
     val tipo: String,
-    val stock: Double
+    val nombre: String,
+    val unidadMedida: String,
+    val stockActual: Double,
+    val descripcion: String? = null
 )

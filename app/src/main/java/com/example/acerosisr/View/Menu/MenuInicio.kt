@@ -65,16 +65,8 @@ fun MenuInicio(
     val isDueno = cargo == "dueño" || cargo == "dueno"
     val isTrabajador = cargo == "trabajador"
 
-    // LOGICA DE ACCESO REFINADA
-
-    // 1. Mis Tareas (Para todos)
     val showMisTareas = true
-
-    // 2. Gestión de Materiales (Solo Admin y Dueño tienen permisos de escritura)
     val showGestionMateriales = isAdmin || isDueno
-
-    // 3. Ver Materiales (Solo Trabajador tiene acceso a la vista de lectura)
-    // ✅ AQUI ESTÁ EL CAMBIO CLAVE: Solo es true si es trabajador.
     val showVerMateriales = isTrabajador
 
     // 4. Resto de permisos

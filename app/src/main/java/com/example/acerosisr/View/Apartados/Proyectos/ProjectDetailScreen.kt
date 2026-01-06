@@ -40,7 +40,6 @@ fun ProjectDetailScreen(
     val isLoading by projectsViewModel.isLoading.collectAsState()
     val errorMessage by projectsViewModel.errorMessage.collectAsState()
 
-    // Cuando cambie el id, cargamos el detalle desde el backend
     LaunchedEffect(projectId) {
         if (projectId != null) {
             projectsViewModel.loadProjectDetail(projectId)
@@ -59,11 +58,9 @@ fun ProjectDetailScreen(
                     }
                 },
                 actions = {
-                    // Acción para editar (más adelante puedes usar una pantalla Create/Edit)
                     if (project != null && project!!.id != null) {
                         IconButton(
                             onClick = {
-                                // Ajusta esta ruta si tienes una pantalla específica de edición
                                 navController.navigateTo(
 
                                     AppScreen.EditProject.editRoute(project!!.id)

@@ -34,7 +34,7 @@ import java.util.Locale
 fun MenuDrawer(
     userViewModel: UserViewModel,
     appCloser: AppCloser,
-    navController: Navigation? = null, // Opción para navegar desde el drawer si lo necesitas
+    navController: Navigation? = null,
     content: @Composable (PaddingValues) -> Unit
 ) {
     val drawerState = rememberDrawerState(initialValue = DrawerValue.Closed)
@@ -87,12 +87,6 @@ fun MenuDrawer(
                     HorizontalDivider(thickness = 1.dp, color = TextColorWhite.copy(alpha = 0.2f))
                     Spacer(Modifier.height(24.dp))
 
-                    // --- BOTÓN NUEVO: EDITAR INFORMACIÓN ---
-                    // Nota: Para que funcione, MenuDrawer debe recibir el 'navController'
-                    // Si tu arquitectura actual no pasa el navController al Drawer,
-                    // deberás pasarlo desde MenuInicio.kt
-
-                    // Botón placeholder que usa el navController si está disponible
                     if (navController != null) {
                         OutlinedButton(
                             onClick = {
@@ -134,7 +128,6 @@ fun MenuDrawer(
             }
         },
     ) {
-        // El contenido del Scaffold se mantiene igual, solo agregué el parámetro navController arriba
         Scaffold(
             containerColor = BackgroundColorTwo,
             floatingActionButton = {

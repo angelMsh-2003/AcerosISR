@@ -1,0 +1,259 @@
+# API Backend - Aceros I.S.R.
+
+## 1. Descripción del Proyecto
+
+Este es el proyecto backend para la aplicación de gestión del taller de herrería "Aceros I.S.R.". Este servicio actúa como una API RESTful que se comunica con el frontend (una aplicación móvil Android en Kotlin) y una base de datos PostgreSQL en la nube.
+
+El propósito de este backend es centralizar toda la lógica de negocio, la gestión de datos y la autenticación de usuarios.
+
+## 2. Arquitectura y Pila Tecnológica
+
+Este proyecto debe ser construido e implementado usando la siguiente arquitectura:
+
+* **Framework de Backend:** **Flask** (Python)
+* **Proveedor de Nube:** Google Cloud
+* **Servicio de Cómputo (PaaS):** **Google Cloud Run**
+* **Base de Datos (DBaaS):** **Google Cloud SQL**
+* **Motor de Base de Datos:** **PostgreSQL**
+* **Puerta de Enlace (Gateway):** **Google API Gateway**
+* **Autenticación:** **JWT (JSON Web Tokens)**. Usar la librería `Flask-JWT-Extended`.
+* **Gestión de Secretos:** **Google Secret Manager** (para almacenar la URI de la BD y el `JWT_SECRET_KEY`).
+* **Almacenamiento de Archivos:** **Google Cloud Storage** (para fotos de trabajos, etc.)
+* **Monitoreo:** Google Cloud Monitoring y Cloud Logging.
+
+## 3. Esquema de la Base de Datos (PostgreSQL)
+
+El siguiente esquema debe ser implementado en la instancia de Cloud SQL (PostgreSQL). Prestar especial atención a la migración de tipos de datos de SQLite a Postgres (ej. `INTEGER PRIMARY KEY AUTOINCREMENT` se convierte en `SERIAL PRIMARY KEY`).
+
+```sql
+-- --- Modelo de Clases Python (SQLAlchemy) ---
+-- Se deben crear modelos de SQLAlchemy que coincidan con estas tablas.
+-- Ejemplo: class Actividades(db.Model): ...
+
+-- ==========================================
+-- SCHEMA: TALLER_LOGISTICO
+-- ==========================================
+
+DROP SCHEMA IF EXISTS taller_logistico CASCADE;
+CREATE SCHEMA taller_logistico;
+SET search_path TO taller_logistico;
+
+-- ======================
+-- 1. EMPLEADOS / USUARIOS
+-- ======================
+CREATE TABLE Empleados (
+    empleado_id SERIAL PRIMARY KEY,
+    num_empleado INTEGER UNIQUE CHECK (num_empleado BETWEEN 0 AND 9999999),
+    nombre VARCHAR(50) NOT NULL,
+    cargo VARCHAR(20) NOT NULL CHECK (cargo IN ('dueño','admin','trabajador')),
+    correo VARCHAR(50),
+    password_hash TEXT,
+    salt TEXT,
+    activo BOOLEAN DEFAULT TRUE
+);
+
+-- Tabla CurrentUser ya NO es necesaria.
+-- 👉 Se maneja la sesión en la capa de aplicación, no en la BD.
+
+-- ======================
+-- 2. MATERIALES (STOCK UNIFICADO)
+-- ======================
+CREATE TABLE Materiales (
+    material_id SERIAL PRIMARY KEY,
+    tipo VARCHAR(20) NOT NULL CHECK (tipo IN ('tubo','soldadura','lamina','herramienta','otro')),
+    nombre VARCHAR(50) NOT NULL,
+    unidad_medida VARCHAR(10) NOT NULL CHECK (unidad_medida IN ('pieza','kg','ton','m','lt')),
+    descripcion TEXT,
+    stock_actual NUMERIC(12,2) DEFAULT 0 CHECK (stock_actual >= 0)
+);
+
+-- ======================
+-- 3. MOVIMIENTOS DE MATERIAL (para FIFO)
+-- ======================
+CREATE TABLE MovimientosMaterial (
+    movimiento_id SERIAL PRIMARY KEY,
+    material_id INT NOT NULL REFERENCES Materiales(material_id) ON DELETE CASCADE,
+    tipo_movimiento VARCHAR(10) NOT NULL CHECK (tipo_movimiento IN ('entrada','salida')),
+    fecha TIMESTAMP NOT NULL DEFAULT CURRENT_TIMESTAMP,
+    cantidad NUMERIC(12,2) NOT NULL CHECK (cantidad > 0),
+    costo_unitario NUMERIC(12,2) CHECK (costo_unitario >= 0),
+    empleado_id INT REFERENCES Empleados(empleado_id),
+    observaciones TEXT
+);
+
+-- Para mantener FIFO, cada “salida” se asocia a una o más entradas,
+-- lo manejará la lógica de aplicación (o trigger si se quiere automatizar más adelante).
+
+-- ======================
+-- 4. PROYECTOS (TRABAJOS)
+-- ======================
+CREATE TABLE Proyectos (
+    proyecto_id SERIAL PRIMARY KEY,
+    descripcion TEXT NOT NULL,
+    cliente VARCHAR(100) NOT NULL,
+    fecha_registro TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    registrado_por INT REFERENCES Empleados(empleado_id),
+    estado VARCHAR(20) DEFAULT 'En progreso' CHECK (estado IN ('En progreso','Finalizado','Cancelado'))
+);
+
+-- ======================
+-- 5. ACTIVIDADES Y TAREAS
+-- ======================
+CREATE TABLE Actividades (
+    actividad_id SERIAL PRIMARY KEY,
+    descripcion VARCHAR(100) NOT NULL,
+    area VARCHAR(30) NOT NULL,
+    margen_error INTEGER CHECK (margen_error BETWEEN 0 AND 99)
+);
+
+CREATE TABLE Tareas (
+    tarea_id SERIAL PRIMARY KEY,
+    proyecto_id INT NOT NULL REFERENCES Proyectos(proyecto_id) ON DELETE CASCADE,
+    actividad_id INT REFERENCES Actividades(actividad_id),
+    empleado_id INT REFERENCES Empleados(empleado_id),
+    estado VARCHAR(15) DEFAULT 'Pendiente' CHECK (estado IN ('Pendiente','En proceso','Completada')),
+    fecha_inicio DATE,
+    fecha_fin DATE,
+    comentarios TEXT
+);
+
+-- ======================
+-- 6. CONSUMO DE MATERIALES EN TAREAS
+-- ======================
+CREATE TABLE ConsumoMaterial (
+    consumo_id SERIAL PRIMARY KEY,
+    tarea_id INT NOT NULL REFERENCES Tareas(tarea_id) ON DELETE CASCADE,
+    material_id INT NOT NULL REFERENCES Materiales(material_id),
+    cantidad_usada NUMERIC(12,2) NOT NULL CHECK (cantidad_usada > 0),
+    fecha_uso TIMESTAMP DEFAULT CURRENT_TIMESTAMP,
+    observaciones TEXT
+);
+```
+
+## 4. Requisitos de la API (Endpoints)
+
+La API debe exponer endpoints RESTful para todas las entidades de la base de datos (CRUD).
+
+**Prefijo de la API:** Todos los endpoints deben estar bajo el prefijo `/api/v1/`.
+
+**Seguridad:** Todos los endpoints (excepto `/login`) deben estar protegidos y requerir un token JWT válido.
+
+**Autorización (Roles):** La lógica de negocio dentro de los endpoints debe verificar el rol del usuario (obtenido del JWT) antes de permitir operaciones críticas.
+* **Roles:** `admin`, `gerente`, `empleado`.
+* **Ejemplo:** Solo un `admin` o `gerente` puede crear un `Empleado` nuevo. Un `empleado` solo puede ver sus propias `Tareas`.
+
+---
+### Endpoints de Autenticación
+
+* **`POST /api/v1/auth/login`**
+    * **Body:** `{ "NumEmpleado": 1234567, "password": "..." }`
+    * **Lógica:** Verifica las credenciales (hash + salt) en la tabla `Empleados`.
+    * **Respuesta Exitosa:** `{ "token": "jwt_token_aqui" }`
+
+---
+### Endpoints de Tareas (CRUD de Tareas + Actividades)
+
+* **`GET /api/v1/tareas`**
+    * Retorna una lista de todas las tareas (con JOIN de `Actividades`).
+* **`POST /api/v1/tareas`**
+    * Crea una nueva `Actividad` y su `Tarea` asociada.
+    * **Body:** `{ "Descripcion": "...", "MargenError": "...", "Area": "...", "NumEmpleado": "...", "Estado": "..." ... }`
+* **`GET /api/v1/tareas/<int:id>`**
+    * Retorna una tarea específica por su `ActividadId`.
+* **`PUT /api/v1/tareas/<int:id>`**
+    * Actualiza la `Actividad` y la `Tarea` con `ActividadId = id`.
+* **`DELETE /api/v1/tareas/<int:id>`**
+    * Elimina la `Tarea` y la `Actividad` con `ActividadId = id`.
+
+---
+### Endpoints de Empleados
+
+* **`GET /api/v1/empleados`**
+    * Retorna todos los empleados (solo `admin` o `gerente`).
+* **`POST /api/v1/empleados`**
+    * Crea un nuevo empleado. (solo `admin` o `gerente`).
+* **`PUT /api/v1/empleados/<int:num_empleado>/register`**
+    * Actualiza un empleado existente para añadir `Correo`, `Password_hash`, `Salt` y `Estado`.
+
+---
+### Endpoints de Inventario (Laminas, Herramientas, Soldadura, Tubos)
+
+Generar endpoints CRUD completos para cada una de estas tablas:
+
+* **`GET /api/v1/inventario/laminas`** (Obtener todas)
+* **`POST /api/v1/inventario/laminas`** (Crear nueva)
+* **`PUT /api/v1/inventario/laminas/<int:id>`** (Actualizar)
+* **`DELETE /api/v1/inventario/laminas/<int:id>`** (Eliminar)
+
+* **(Repetir el mismo patrón para `herramientas`, `soldadura` y `tubos`)**
+
+## 5. Estructura del Proyecto Flask
+
+Se recomienda seguir una estructura de aplicación escalable (evitar un solo archivo `app.py` grande).
+
+```
+/backend-flask
+|
+|--- app/
+|    |--- __init__.py      # Fábrica de aplicación (create_app)
+|    |--- models.py        # Todos los modelos de SQLAlchemy
+|    |--- routes.py        # Definición de todos los endpoints (Blueprints)
+|    |--- services.py      # Lógica de negocio (manejo de roles, etc.)
+|    |--- extensions.py    # Inicialización de extensiones (db, jwt, etc.)
+|
+|--- config.py            # Clases de configuración (Development, Production)
+|--- main.py              # Punto de entrada para Gunicorn
+|--- requirements.txt     # Lista de dependencias
+|--- Dockerfile           # Para construir la imagen de Cloud Run
+|--- .env.example         # Plantilla de variables de entorno
+|--- .dockerignore
+|--- .gitignore
+```
+
+## 6. Archivos de Configuración Clave
+
+### `requirements.txt` (Dependencias)
+```
+Flask
+Flask-SQLAlchemy
+Flask-Migrate        # Para manejar migraciones de la BD
+Flask-JWT-Extended   # Para la gestión de JWT
+psycopg2-binary      # Driver de PostgreSQL
+gunicorn             # Servidor WSGI para producción
+python-dotenv        # Para cargar variables de entorno en local
+google-cloud-storage # Para conectar con Cloud Storage
+```
+
+### `Dockerfile` (Para Cloud Run)
+Crear un `Dockerfile` multi-etapa optimizado para producción.
+* Debe instalar dependencias desde `requirements.txt`.
+* Debe usar `gunicorn` como punto de entrada (entrypoint).
+* Debe escuchar en el puerto `$PORT` que Cloud Run proporciona como variable de entorno.
+
+**Ejemplo de Gunicorn (CMD en Dockerfile):**
+`CMD ["gunicorn", "--bind", "0.0.0.0:$PORT", "main:app"]`
+
+### `.env.example` (Variables de Entorno)
+```
+# Configuración de Flask
+FLASK_APP=main.py
+FLASK_ENV=development
+
+# Clave secreta para JWT (generar una segura)
+JWT_SECRET_KEY="tu_clave_secreta_aqui"
+
+# URI de la Base de Datos (para desarrollo local con Cloud SQL Proxy)
+DATABASE_URL="postgresql://USUARIO:CONTRASEÑA@localhost:5432/NOMBRE_DB"
+
+# NOTA: En producción en Cloud Run, estas variables deben ser inyectadas desde Google Secret Manager.
+```
+
+## 7. Instrucciones para Desarrollo Local
+
+1.  Clonar el repositorio.
+2.  Crear y activar un entorno virtual: `python -m venv venv` y `source venv/bin/activate`.
+3.  Instalar dependencias: `pip install -r requirements.txt`.
+4.  Iniciar el **Proxy de Cloud SQL** para conectar con la base de datos en la nube.
+5.  Crear un archivo `.env` basado en `.env.example` con las credenciales correctas.
+6.  Ejecutar el servidor de desarrollo: `flask run`.
+```
